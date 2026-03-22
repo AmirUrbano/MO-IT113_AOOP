@@ -364,18 +364,44 @@ public class MainFrame extends JFrame {
     }
 
     private class DeleteEmployeeListener implements ActionListener {
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            if (selectedEmployee == null) return;
-            int result = JOptionPane.showConfirmDialog(MainFrame.this, "Delete " + selectedEmployee.getFirstName() + "?", "Confirm", JOptionPane.YES_NO_OPTION);
-            if (result == JOptionPane.YES_OPTION) {
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        if (selectedEmployee == null) {
+            JOptionPane.showMessageDialog(MainFrame.this, "Please select an employee first.");
+            return;
+        }
+
+        int result = JOptionPane.showConfirmDialog(
+            MainFrame.this, 
+            "Are you sure you want to delete " + selectedEmployee.getFirstName() + " " + selectedEmployee.getLastName() + "?", 
+            "Confirm Deletion", 
+            JOptionPane.YES_NO_OPTION,
+            JOptionPane.WARNING_MESSAGE
+        );
+
+        if (result == JOptionPane.YES_OPTION) {
+            try {
                 if (employeeDetails.deleteEmployee(selectedEmployee.getEmployeeId())) {
-                    loadEmployeeData();
-                    detailPanel.clearForm();
+                    JOptionPane.showMessageDialog(MainFrame.this, "Employee deleted successfully.");
+                    loadEmployeeData(); 
+                    detailPanel.clearForm(); 
+                    selectedEmployee = null; 
+                } else {
+                    JOptionPane.showMessageDialog(MainFrame.this, "Delete failed: Employee ID not found.", "Error", JOptionPane.ERROR_MESSAGE);
                 }
+            } catch (IllegalStateException ex) {
+                JOptionPane.showMessageDialog(
+                    MainFrame.this, 
+                    ex.getMessage(), 
+                    "Security Access Denied", 
+                    JOptionPane.ERROR_MESSAGE
+                );
+            } catch (Exception ex) {
+                JOptionPane.showMessageDialog(MainFrame.this, "An unexpected error occurred: " + ex.getMessage(), "System Error", JOptionPane.ERROR_MESSAGE);
             }
         }
     }
+}
 
     private class ViewEmployeeListener implements ActionListener {
         @Override

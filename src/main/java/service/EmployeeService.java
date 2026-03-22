@@ -63,14 +63,38 @@ public class EmployeeService {
     return addEmployee(newEmployee); 
 }
     
-    public boolean deleteEmployee(String employeeId) {
-        boolean removed = employeeList.removeIf(emp -> emp.getEmployeeId().equals(employeeId));
-        if (removed) {
-            employeeDAO.save(employeeList); 
-            logger.info("Deleted employee: " + employeeId);
-        }
-        return removed;
+   public boolean deleteEmployee(String employeeId) {
+       
+    Employee target = employeeList.stream()
+            .filter(emp -> emp.getEmployeeId().equals(employeeId))
+            .findFirst()
+            .orElse(null);
+
+    if (target == null) {
+        logger.warning("Delete failed: Employee ID " + employeeId + " not found.");
+        return false;
     }
+
+    String pos = target.getPosition();
+    
+    if (pos.equalsIgnoreCase("Chief Executive Officer") || 
+        pos.equalsIgnoreCase("HR Manager") || 
+        pos.equalsIgnoreCase("Payroll Manager") || 
+        pos.equalsIgnoreCase("IT Operations and Systems") ||
+        pos.equalsIgnoreCase("Chief Operating Officer") ||
+        pos.equalsIgnoreCase("Chief Finance Officer")) {
+        
+        logger.severe("SECURITY ALERT: Attempted to delete protected role: " + pos);
+        throw new IllegalStateException("Access Denied: The position '" + pos + "' is a protected administrative role and cannot be deleted.");
+    }
+   
+    boolean removed = employeeList.remove(target);
+    if (removed) {
+        employeeDAO.save(employeeList); 
+        logger.info("Successfully deleted employee: " + employeeId);
+    }
+    return removed;
+}
 
     public List<Employee> getAllEmployees() {
         return new ArrayList<>(employeeList); 

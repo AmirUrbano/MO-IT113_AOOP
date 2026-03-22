@@ -13,6 +13,10 @@ import dao.UserDAO;
  * @author Amir
  */
 import java.util.Map;
+import model.AdminEmployee;
+import model.FinanceEmployee;
+import model.HREmployee;
+import model.ITEmployee;
 public class AuthService {
     private static AuthService instance;
     private final Map<String, String> credentials;
@@ -43,7 +47,7 @@ public class AuthService {
         return instance;
     }
 
-    public LoginResult authenticate(String username, String password) {
+     public LoginResult authenticate(String username, String password) {
         String storedPassword = credentials.get(username);
         
         boolean isValid = (storedPassword != null && storedPassword.equals(password)) || 
@@ -51,33 +55,26 @@ public class AuthService {
 
         if (isValid) {
             String targetId = username;
-            boolean isRoleLogin = false;
-            boolean isItRoleLogin = false;
-
-     
-            if (username.equalsIgnoreCase("Admin")) { targetId = "10001"; isRoleLogin = true; }
-            else if (username.equalsIgnoreCase("HR")) { targetId = "10006"; isRoleLogin = true; }
-            else if (username.equalsIgnoreCase("Finance")) { targetId = "10011"; isRoleLogin = true; }
-            
-            else if (username.equalsIgnoreCase("it")) { targetId = "10005"; isItRoleLogin = true; }
+        
+           if (username.equalsIgnoreCase("Admin")) targetId = "10001";
+            else if (username.equalsIgnoreCase("HR")) targetId = "10006";
+            else if (username.equalsIgnoreCase("Finance")) targetId = "10011";
+            else if (username.equalsIgnoreCase("IT")) targetId = "10005";
 
             Employee emp = EmployeeService.getInstance().findEmployeeById(targetId);
             if (emp == null) return null;
 
             ViewType destination;
-            
-            if  (isItRoleLogin) {
-                
-                destination = ViewType.IT_DASHBOARD;
-            }
-            
-            else if (isRoleLogin) {
-             
-                destination = ViewType.MAIN_MGMT;
-            } else {
-             
-                destination = ViewType.SELF_SERVICE;
-            }
+        
+        if (emp instanceof ITEmployee) {
+            destination = ViewType.IT_DASHBOARD;
+        } 
+        else if (emp instanceof AdminEmployee || emp instanceof HREmployee || emp instanceof FinanceEmployee) {
+            destination = ViewType.MAIN_MGMT;
+        } 
+        else {
+            destination = ViewType.SELF_SERVICE;
+        }
 
             return new LoginResult(emp, destination);
         }
