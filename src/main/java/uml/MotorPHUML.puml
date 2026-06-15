@@ -1,0 +1,149 @@
+@startuml
+
+package model {
+    abstract class Employee {
+        - employeeId : String
+        - firstName : String
+        - lastName : String
+        - birthday : String
+        - address : String
+        - phoneNumber : String
+        - sssNumber : String
+        - philHealth : String
+        - tinNumber : String
+        - pagIbig : String
+        - status : String
+        - position : String
+        - supervisor : String
+        - basicSalary : double
+        - riceSubsidy : double
+        - phoneAllowance : double
+        - clothingAllowance : double
+        - grossSemiMonthlyRate : double
+        - hourlyRate : double
+        + calculateSSS() : double
+        + calculatePhilHealth() : double
+        + calculatePagIbig() : double
+        + calculateWithholdingTax(grossSalary: double) : double
+    }
+
+    class AdminEmployee
+    class FinanceEmployee
+    class HREmployee
+    class ITEmployee
+    class RegularEmp
+    class ProbationaryEmp
+
+    interface PayrollCalculations
+    interface EmployeePermissions
+
+    Employee <|-- AdminEmployee
+    Employee <|-- FinanceEmployee
+    Employee <|-- HREmployee
+    Employee <|-- ITEmployee
+    Employee <|-- RegularEmp
+    Employee <|-- ProbationaryEmp
+
+    Employee ..|> PayrollCalculations
+    Employee ..|> EmployeePermissions
+
+    class AttendanceRecord {
+        - employeeId : String
+        - date : String
+        - logIn : LocalTime
+        - logOut : LocalTime
+        - isLate : boolean
+        - lateMinutes : int
+        - hoursWorked : double
+    }
+
+    class LeaveRequest {
+        - requestId : String
+        - employeeId : String
+        - employeeName : String
+        - startDate : String
+        - endDate : String
+        - leaveType : String
+        - status : String
+    }
+
+    class PayrollResult {
+        - employeeId : String
+        - firstName : String
+        - lastName : String
+        - grossSalary : double
+        - deductions : double
+        - netSalary : double
+    }
+}
+
+package dao {
+    class EmployeeDAO {
+        + load() : List<Employee>
+        + save(employeeList: List<Employee>)
+    }
+
+    class AttendanceDAO {
+        + load() : List<AttendanceRecord>
+        + save(records: List<AttendanceRecord>)
+    }
+
+    class LeaveDAO {
+        + load() : List<LeaveRequest>
+        + save(list: List<LeaveRequest>)
+    }
+
+    class UserDAO {
+        + loadCredentials() : Map<String,String>
+        + createAccount(username: String, password: String)
+    }
+}
+
+package service {
+    class EmployeeService {
+        + addEmployee(emp: Employee) : boolean
+        + deleteEmployee(id: String) : boolean
+        + updateEmployee(emp: Employee) : boolean
+        + getAllEmployees() : List<Employee>
+    }
+
+    class AttendanceService {
+        + getHoursWorked(empId: String, start: LocalDate, end: LocalDate) : double
+        + getMinutesLate(empId: String, start: LocalDate, end: LocalDate) : int
+        + recordAttendance(empId: String, isTimeIn: boolean) : String
+    }
+
+    class LeaveService {
+        + fileLeave(request: LeaveRequest)
+        + updateLeaveStatus(requestId: String, status: String) : boolean
+        + getLeaveHistoryForEmployee(empId: String) : List<LeaveRequest>
+    }
+
+    class PayrollService {
+        + processMonthlyPayroll(empId: String, month: int) : String
+        + getPayrollResultForGUI(empId: String, month: int) : PayrollResult
+    }
+
+    class AuthService {
+        + authenticate(username: String, password: String) : LoginResult
+    }
+
+    class ITService {
+        + runSystemDiagnostics() : String
+        + searchEmployees(query: String) : List<Employee>
+        + resetUserPassword(empId: String) : boolean
+        + performDataBackup() : boolean
+        + restoreSystemBackup() : boolean
+    }
+}
+
+' Relationships between layers with multiplicities
+EmployeeService --> EmployeeDAO : 1..*
+AttendanceService --> AttendanceDAO : 1..*
+LeaveService --> LeaveDAO : 1..*
+AuthService --> UserDAO : 1
+PayrollService --> EmployeeService
+PayrollService --> AttendanceService
+ITService --> EmployeeService
+
+@enduml

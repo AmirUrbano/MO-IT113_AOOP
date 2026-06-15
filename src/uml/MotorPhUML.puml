@@ -1,0 +1,198 @@
+@startuml
+' Interfaces with full methods
+interface PayrollCalculations {
+  + calculateGrossSalary(hoursWorked: double)
+  + calculateAdjustment(hours: double)
+  + calculateAdjustment(minutes: int)
+  + calculateSSS(): double
+  + calculatePhilHealth(): double
+  + calculatePagIbig(): double
+  + calculateWithholdingTax(taxableIncome: double)
+}
+
+interface EmployeePermissions {
+  + canViewDatabase(): boolean
+  + canViewAllRecords(): boolean
+  + canAddEmployee(): boolean
+  + canEditBasicInfo(): boolean
+  + canDeleteEmployee(): boolean
+  + canEditFinancials(): boolean
+  + canComputePayroll(): boolean
+  + canFileLeave(): boolean
+  + canApproveLeave(): boolean
+  + canAccessSystemTools(): boolean
+}
+
+' Abstract parent
+abstract class Employee {
+  - employeeId: String
+  - lastName: String
+  - firstName: String
+  - birthday: String
+  - address: String
+  - phoneNumber: String
+  - sssNumber: String
+  - philHealth: String
+  - tinNumber: String
+  - pagIbig: String
+  - status: String
+  - position: String
+  - supervisor: String
+  - basicSalary: double
+  - riceSubsidy: double
+  - phoneAllowance: double
+  - clothingAllowance: double
+  - grossSemiMonthlyRate: double
+  - hourlyRate: double
+  + calculateBenefit(type: String): double
+  + calculateBenefit(): double
+  + calculateGrossSalary(hoursWorked: double): double
+  + calculateAdjustment(overtimeHours: double): double
+  + calculateAdjustment(totalMinutesLate: int): double
+  + calculateWithholdingTax(grossSalary: double): double
+}
+
+' Subclasses
+class AdminEmployee
+class FinanceEmployee
+class HREmployee
+class ITEmployee
+class RegularEmp
+class ProbationaryEmp
+
+Employee <|-- AdminEmployee
+Employee <|-- FinanceEmployee
+Employee <|-- HREmployee
+Employee <|-- ITEmployee
+Employee <|-- RegularEmp
+Employee <|-- ProbationaryEmp
+
+Employee ..|> PayrollCalculations
+Employee ..|> EmployeePermissions
+
+' Supporting models
+class AttendanceRecord {
+  - employeeId: String
+  - date: String
+  - logIn: LocalTime
+  - logOut: LocalTime
+  - isLate: boolean
+  - lateMinutes: int
+  - hoursWorked: double
+  - weekNumber: int
+}
+
+class LeaveRequest {
+  - requestId: String
+  - employeeId: String
+  - employeeName: String
+  - startDate: String
+  - endDate: String
+  - leaveType: String
+  - status: String
+}
+
+class PayrollResult {
+  - employeeId: String
+  - lastName: String
+  - firstName: String
+  - sssNumber: String
+  - philHealth: String
+  - tinNumber: String
+  - pagIbig: String
+  - status: String
+  - position: String
+  - basicSalary: double
+  - riceSubsidy: double
+  - phoneAllowance: double
+  - clothingAllowance: double
+  - grossSemiMonthlyRate: double
+  - hourlyRate: double
+  - totalMonthlyGrossSalary: double
+  - sssDeduction: double
+  - philHealthDeduction: double
+  - pagIbigDeduction: double
+  - taxDeduction: double
+  - totalLateDeductions: double
+  - totalAllowances: double
+  - totalMonthlyNetSalary: double
+  - totalLateDays: int
+}
+
+class EmployeeStatus {
+  + createFromCsv(data: String[]): Employee
+}
+
+' Relationships
+EmployeeStatus --> Employee
+AttendanceRecord --> Employee
+LeaveRequest --> Employee
+PayrollResult --> Employee
+
+' Service Layer
+class EmployeeService {
+  + findEmployeeById(id: String): Employee
+  + addEmployee(emp: Employee): boolean
+  + deleteEmployee(id: String): boolean
+  + updateEmployee(emp: Employee): boolean
+}
+
+class AttendanceService {
+  + getRecordsInRange(empId: String, start: LocalDate, end: LocalDate): List
+  + getHoursWorked(empId: String, start: LocalDate, end: LocalDate): double
+  + recordAttendance(empId: String, isTimeIn: boolean): String
+}
+
+class LeaveService {
+  + fileLeave(request: LeaveRequest)
+  + updateLeaveStatus(requestId: String, newStatus: String): boolean
+  + getLeavesByEmployeeId(empId: String): List
+}
+
+class PayrollService {
+  + processMonthlyPayroll(empId: String, month: int): String
+  + getPayrollResultForGUI(empId: String, month: int): PayrollResult
+}
+
+class AuthService {
+  + authenticate(username: String, password: String): LoginResult
+}
+
+class ITService {
+  + resetUserPassword(empId: String): boolean
+  + runSystemDiagnostics(): String
+}
+
+' DAO Layer
+class EmployeeDAO {
+  + load(): List<Employee>
+  + save(list: List<Employee>)
+}
+
+class AttendanceDAO {
+  + load(): List<AttendanceRecord>
+  + save(list: List<AttendanceRecord>)
+}
+
+class LeaveDAO {
+  + load(): List<LeaveRequest>
+  + save(list: List<LeaveRequest>)
+}
+
+class UserDAO {
+  + loadCredentials(): Map<String,String>
+  + createAccount(username: String, password: String)
+}
+
+' Relationships between layers
+EmployeeService --> EmployeeDAO
+EmployeeService --> EmployeeStatus
+AttendanceService --> AttendanceDAO
+LeaveService --> LeaveDAO
+PayrollService --> AttendanceService
+PayrollService --> EmployeeService
+PayrollService --> PayrollResult
+AuthService --> UserDAO
+AuthService --> EmployeeService
+ITService --> EmployeeService
+@enduml
