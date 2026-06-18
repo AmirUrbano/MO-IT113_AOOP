@@ -5,9 +5,13 @@
 package dao;
 
 
-import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
+import config.DatabaseConnection;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,45 +21,63 @@ import java.util.logging.Logger;
  * @author Amir
  */
 public class UserDAO {
-    private static final String CREDENTIALS_FILE = "user_credentials.csv";
     private static final Logger LOGGER = Logger.getLogger(UserDAO.class.getName());
 
-    public Map<String, String> loadCredentials() {
-        Map<String, String> credentials = new HashMap<>();
-        File file = new File(CREDENTIALS_FILE);
-        
-        if (!file.exists()) {
-            LOGGER.log(Level.SEVERE, "Credentials file not found: {0}", CREDENTIALS_FILE);
-            return credentials;
-        }
+    public String validateLogin(String username, String password) {
+        String sql = "SELECT employee_id FROM user_credentials WHERE username = ? AND password = ?";
+        String hashedInputPassword = hashSHA256(password); // hashed password
 
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            String line;
-            while ((line = br.readLine()) != null) {
-               
-                if (line.trim().isEmpty() || line.trim().startsWith("#")) continue;
-                
-                String[] parts = line.split(",");
-                if (parts.length >= 2) {
-                    credentials.put(parts[0].trim(), parts[1].trim());
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setString(1, username);
+            pstmt.setString(2, hashedInputPassword);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("employee_id"); // success login
                 }
             }
-            LOGGER.log(Level.INFO, "Successfully loaded {0} user credentials.", credentials.size());
-        } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error reading credentials file", e);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Database error during authentication check: " + e.getMessage(), e);
         }
-        return credentials;
+        return null; // failed
     }
     
-    public void createAccount(String username, String password) {
-    
-    try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(CREDENTIALS_FILE, true)))) {
-        out.println(username + "," + password);
-        LOGGER.log(Level.INFO, "New account created for user: {0}", username);
-    } catch (IOException e) {
-        LOGGER.log(Level.SEVERE, "Error writing to credentials file", e);
+    public void createAccount(String employeeId, String username, String password) {
+        String sql = "INSERT INTO user_credentials (employee_id, username, password) VALUES (?, ?, ?)";
+        String hashedPassword = hashSHA256(password);
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+            
+            pstmt.setString(1, employeeId);
+            pstmt.setString(2, username);
+            pstmt.setString(3, hashedPassword);
+
+            pstmt.executeUpdate();
+            LOGGER.log(Level.INFO, "New database account successfully created for username: {0}", username);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Database error while writing new user account: " + e.getMessage(), e);
+        }
     }
-}
-    
+   
+   public String hashSHA256(String base) {
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(base.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            
+            for (byte b : hash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException ex) {
+            LOGGER.log(Level.SEVERE, "Critical Security Error: SHA-256 algorithm not found.", ex);
+            return base; 
+        }
+    } 
 }
 

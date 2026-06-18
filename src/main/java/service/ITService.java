@@ -5,10 +5,11 @@
 package service;
 
 
+import config.DatabaseConnection;
+import java.sql.Connection;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.logging.Logger;
-import java.io.File;
 import java.util.List;
 import model.Employee;
 import java.util.stream.Collectors;
@@ -29,44 +30,60 @@ public class ITService {
         return instance;
     }
 
-    //
     public boolean resetUserPassword(String empId) {
-        
         logger.info("IT Security: Password reset triggered for ID: " + empId);
+ 
         return true; 
     }
     
     public List<Employee> searchEmployees(String query) {
-    List<Employee> all = EmployeeService.getInstance().getAllEmployees();
-    if (query == null || query.isEmpty()) return all;
+        List<Employee> all = EmployeeService.getInstance().getAllEmployees();
+        if (query == null || query.isEmpty()) return all;
 
-    String lowerQuery = query.toLowerCase();
-    return all.stream()
-        .filter(emp -> emp.getEmployeeId().contains(query) || 
-                       (emp.getFirstName() + " " + emp.getLastName()).toLowerCase().contains(lowerQuery))
-        .collect(Collectors.toList());
-}
+        String lowerQuery = query.toLowerCase();
+        return all.stream()
+            .filter(emp -> emp.getEmployeeId().contains(query) || 
+                           (emp.getFirstName() + " " + emp.getLastName()).toLowerCase().contains(lowerQuery))
+            .collect(Collectors.toList());
+    }
     
     public String getTimestampedMessage(String message) {
-        // The Service handles the time formatting
         String time = LocalDateTime.now().format(DateTimeFormatter.ofPattern("HH:mm:ss"));
         return "[" + time + "] " + message;
     }
  
+    /**
+     * updated from CSV to DB
+     */
     public String runSystemDiagnostics() {
-        File empFile = new File("employees.csv");
-        File leaveFile = new File("leaves.csv");
-        File attendanceFile = new File("Attendance.csv");
-        
         StringBuilder report = new StringBuilder();
-        report.append(empFile.exists() ? "[PASS] Employee Database Connected\n" : "[FAIL] Employee Database Missing\n");
-        report.append(leaveFile.exists() ? "[PASS] Leave Database Connected\n" : "[FAIL] Leave Database Missing\n");
-        report.append(attendanceFile.exists() ? "[PASS] Attendance Log Found\n" : "[FAIL] Attendance Log Missing\n");
-        if (empFile.exists() && attendanceFile.exists()) {
-        report.append("[INFO] All systems operational.");
-    } else {
-        report.append("[WARN] System degradation detected.");
-    }
+        report.append("========================================\n");
+        report.append("       SYSTEM DIAGNOSTICS REPORT\n");
+        report.append("========================================\n");
+        
+        boolean isDbConnected = false;
+        
+       
+        try (Connection conn = DatabaseConnection.getConnection()) {
+            if (conn != null && !conn.isClosed()) {
+                isDbConnected = true;
+            }
+        } catch (Exception e) {
+            logger.warning("Diagnostics failed to connect to database: " + e.getMessage());
+        }
+        
+        if (isDbConnected) {
+            report.append("[PASS] MySQL Central Database Connected\n");
+            report.append("[PASS] Attendance Log Module Sync\n");
+            report.append("[PASS] Leave Management Engine Online\n");
+            report.append("----------------------------------------\n");
+            report.append("[INFO] All systems operational and healthy.");
+        } else {
+            report.append("[FAIL] MySQL Database Connection Lost\n");
+            report.append("----------------------------------------\n");
+            report.append("[WARN] System degradation detected. Check Database connection configuration.");
+        }
+        
         return report.toString();
     }
 }

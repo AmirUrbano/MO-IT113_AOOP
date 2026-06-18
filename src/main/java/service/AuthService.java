@@ -12,14 +12,9 @@ import dao.UserDAO;
  *
  * @author Amir
  */
-import java.util.Map;
-import model.AdminEmployee;
-import model.FinanceEmployee;
-import model.HREmployee;
-import model.ITEmployee;
 public class AuthService {
     private static AuthService instance;
-    private final Map<String, String> credentials;
+    private final UserDAO userDAO;
 
     public enum ViewType {
         MAIN_MGMT, IT_DASHBOARD, SELF_SERVICE
@@ -36,8 +31,7 @@ public class AuthService {
     }
     
     private AuthService() {
-        
-        this.credentials = new UserDAO().loadCredentials();
+        this.userDAO = new UserDAO();
     }
 
     public static AuthService getInstance() {
@@ -48,37 +42,34 @@ public class AuthService {
     }
 
      public LoginResult authenticate(String username, String password) {
-        String storedPassword = credentials.get(username);
         
-        boolean isValid = (storedPassword != null && storedPassword.equals(password)) || 
-                         (storedPassword == null && password.equals("123"));
-
-        if (isValid) {
-            String targetId = username;
+        String targetId = userDAO.validateLogin(username, password);
         
-           if (username.equalsIgnoreCase("Admin")) targetId = "10001";
-            else if (username.equalsIgnoreCase("HR")) targetId = "10006";
-            else if (username.equalsIgnoreCase("Finance")) targetId = "10011";
-            else if (username.equalsIgnoreCase("IT")) targetId = "10005";
+        if (targetId == null) {
+            return null;
+        }
 
-            Employee emp = EmployeeService.getInstance().findEmployeeById(targetId);
-            if (emp == null) return null;
+        boolean isRoleLogin = username.equalsIgnoreCase("Admin") || 
+                             username.equalsIgnoreCase("HR") || 
+                             username.equalsIgnoreCase("Finance");
+                             
+        boolean isItRoleLogin = username.equalsIgnoreCase("it");
 
-            ViewType destination;
-        
-        if (emp instanceof ITEmployee) {
+        ViewType destination;
+        if (isItRoleLogin) {
             destination = ViewType.IT_DASHBOARD;
-        } 
-        else if (emp instanceof AdminEmployee || emp instanceof HREmployee || emp instanceof FinanceEmployee) {
+        } else if (isRoleLogin) {
             destination = ViewType.MAIN_MGMT;
-        } 
-        else {
+        } else {
             destination = ViewType.SELF_SERVICE;
         }
 
-            return new LoginResult(emp, destination);
+        Employee emp = EmployeeService.getInstance().findEmployeeById(targetId);
+        if (emp == null) {
+            return null;
         }
-        return null;
+
+        return new LoginResult(emp, destination);
     }
 }
 

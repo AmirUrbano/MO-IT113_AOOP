@@ -4,68 +4,94 @@
  */
 package dao;
 
+import config.DatabaseConnection;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import model.LeaveRequest;
-import java.io.*;
-import java.util.*;
-import java.util.logging.*;
+import model.Employee;
+import service.EmployeeService;
 /**
  *
  * @author Amir
  */
-public class LeaveDAO {
-    private static final String FILE_PATH = "leaves.csv";
+ public class LeaveDAO {
     private static final Logger logger = Logger.getLogger(LeaveDAO.class.getName());
     
     public List<LeaveRequest> load () {
         
         List<LeaveRequest> list = new ArrayList<>();
-        File file = new File(FILE_PATH);
+        String sql = "SELECT request_id, employee_id, leave_type, start_date, end_date, status FROM leave_requests";
         
-        if (!file.exists()) {
-            logger.warning("leave csv not found returning empty list");
-            return list;   
-        }
-          try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            br.readLine(); 
-            String line;
-            while ((line = br.readLine()) != null) {
-                String[] data = line.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-                if (data.length == 7) {
-                    LeaveRequest request = new LeaveRequest(
-                        data[0], data[1], data[2], data[3], data[4], data[5], data[6]
-                    );
-                    list.add(request);
-                }
+        EmployeeService empService = EmployeeService.getInstance();
+        
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql);
+             ResultSet rs = pstmt.executeQuery()) { 
+
+            while (rs.next()) {
+                String requestId = rs.getString("request_id");
+                String employeeId = rs.getString("employee_id");
+                String leaveType = rs.getString("leave_type");
+                String startDate = rs.getDate("start_date").toString(); 
+                String endDate = rs.getDate("end_date").toString();     
+                String status = rs.getString("status");
+
+                // for name of employee
+                Employee emp = empService.findEmployeeById(employeeId);
+                String fullName = (emp != null) ? (emp.getFirstName() + " " + emp.getLastName()) : "Unknown Employee";
+
+                // constructor model based on LeaveRequest model
+                LeaveRequest request = new LeaveRequest(requestId, employeeId, fullName, startDate, endDate, leaveType, status);
+                list.add(request);
             }
-        } catch (IOException e) {
-            e.printStackTrace();
+            logger.info("Successfully loaded " + list.size() + " leave requests from MySQL Database.");
+
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Database error while loading leave requests: " + e.getMessage());
         }
         return list;
     }
     
-    public void save(List<LeaveRequest> list) {
-        if (list == null){
-            logger.warning("Attempted to save a null employee list operation cancelled.");
+   public void save(List<LeaveRequest> list) {
+        if (list == null) {
+            logger.warning("Attempted to save a null leave list. Operation cancelled.");
             return;
         }
-        try (PrintWriter writer = new PrintWriter(new FileWriter(FILE_PATH))) {
-          
-            writer.println("RequestID,EmployeeID,FullName,LeaveType,StartDate,EndDate,Status");
-            
+
+        String sql = "INSERT INTO leave_requests (request_id, employee_id, leave_type, start_date, end_date, status) "
+                   + "VALUES (?, ?, ?, ?, ?, ?) "
+                   + "ON DUPLICATE KEY UPDATE status = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            conn.setAutoCommit(false); 
+
             for (LeaveRequest lr : list) {
-                StringBuilder sb = new StringBuilder();
-                sb.append(lr.getRequestId()).append(",");
-                sb.append(lr.getEmployeeId()).append(",");
-                sb.append("\"").append(lr.getEmployeeName()).append("\","); 
-                sb.append(lr.getLeaveType()).append(",");
-                sb.append(lr.getStartDate()).append(",");
-                sb.append(lr.getEndDate()).append(",");
-                sb.append(lr.getStatus());
+                pstmt.setString(1, lr.getRequestId());
+                pstmt.setString(2, lr.getEmployeeId());
+                pstmt.setString(3, lr.getLeaveType());
+                pstmt.setString(4, lr.getStartDate()); // yyyy-MM-dd
+                pstmt.setString(5, lr.getEndDate());   // yyyy-MM-dd
+                pstmt.setString(6, lr.getStatus());
                 
-                writer.println(sb.toString());
+                pstmt.setString(7, lr.getStatus());
+
+                pstmt.addBatch();
             }
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Error saving leaves file", e);
+
+            pstmt.executeBatch();
+            conn.commit();
+            logger.info("Successfully synced leave requests to MySQL Database.");
+
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Database error while saving leave requests: " + e.getMessage());
         }
     }
 }

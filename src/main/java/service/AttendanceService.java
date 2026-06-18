@@ -17,10 +17,11 @@ public class AttendanceService {
     private final AttendanceDAO attendanceDAO;
     private static AttendanceService instance;
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
+    private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("H:mm");
     
     private AttendanceService() {
         this.attendanceDAO = new AttendanceDAO();
-        this.attendanceRecords = new AttendanceDAO().load();
+        this.attendanceRecords = this.attendanceDAO.load();
     }
     
     public static AttendanceService getInstance() {
@@ -105,38 +106,51 @@ public class AttendanceService {
     } 
   
     public String recordAttendance(String empId, boolean isTimeIn) {
-    LocalDate today = LocalDate.now();
-    String dateStr = today.toString(); // yyyy-MM-dd
-    String nowTime = java.time.LocalTime.now().format(java.time.format.DateTimeFormatter.ofPattern("H:mm"));
-   
-    List<AttendanceRecord> todayRecords = getRecordsInRange(empId, today, today);
-    
-    if (isTimeIn) {
-        if (!todayRecords.isEmpty()) return "Already Timed In for today!";
+        LocalDate today = LocalDate.now();
+        String dateStr = today.toString(); // yyyy-MM-dd
         
-    
-        AttendanceRecord newRec = new AttendanceRecord(empId, dateStr, 
-                java.time.LocalTime.now(), java.time.LocalTime.parse("00:00"), 
-                false, 0, 0.0, getWeekNumber(today));
         
-        attendanceRecords.add(newRec);
-        attendanceDAO.save(this.attendanceRecords);
+        String nowTimeStr = java.time.LocalTime.now().format(TIME_FORMATTER);
+       
+        List<AttendanceRecord> todayRecords = getRecordsInRange(empId, today, today);
         
-        return "Time In Recorded: " + nowTime;
-    } else {
-        if (todayRecords.isEmpty()) return "No Time In record found!";
-        AttendanceRecord record = todayRecords.get(0);
-        if (!record.getLogOutTime().toString().equals("00:00")) return "Already Timed Out!";
-        
-    
-        attendanceRecords.remove(record);
-        AttendanceRecord updated = new AttendanceRecord(empId, dateStr, 
-                record.getLogInTime(), java.time.LocalTime.now(), 
-                record.isLate(), record.getLateMinutes(), 0.0, record.getWeekNumber());
-        
-        attendanceRecords.add(updated);
-        attendanceDAO.save(this.attendanceRecords);
-        return "Time Out Recorded: " + nowTime;
+        if (isTimeIn) {
+            if (!todayRecords.isEmpty()) {
+                return "Already Timed In for today!";
+            }
+            
+            
+            AttendanceRecord newRec = new AttendanceRecord(empId, dateStr, nowTimeStr, "00:00");
+            
+            attendanceRecords.add(newRec);
+            attendanceDAO.save(this.attendanceRecords); 
+            
+            return "Time In Recorded: " + nowTimeStr;
+        } else {
+            if (todayRecords.isEmpty()) {
+                return "No Time In record found!";
+            }
+            
+            AttendanceRecord record = todayRecords.get(0);
+            if (!record.getLogOutTime().toString().equals("00:00")) {
+                return "Already Timed Out!";
+            }
+            
+          
+            attendanceRecords.remove(record);
+            
+            
+            AttendanceRecord updated = new AttendanceRecord(
+                    empId, 
+                    dateStr, 
+                    record.getLogInTime().format(TIME_FORMATTER), 
+                    nowTimeStr
+            );
+            
+            attendanceRecords.add(updated);
+            attendanceDAO.save(this.attendanceRecords); 
+            
+            return "Time Out Recorded: " + nowTimeStr;
+        }
     }
-}
 } 

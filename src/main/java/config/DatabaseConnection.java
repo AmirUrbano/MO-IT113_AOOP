@@ -22,7 +22,7 @@ public class DatabaseConnection {
     
     public static Connection getConnection() throws SQLException {
         try {
-            Class.forName("com.mysql.cj.jdbc.driver");
+            Class.forName("com.mysql.cj.jdbc.Driver");
             
             if (connection == null || connection.isClosed()) {
                 connection = DriverManager.getConnection(URL, USER, PASSWORD);

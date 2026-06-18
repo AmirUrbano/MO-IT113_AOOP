@@ -20,7 +20,7 @@ public class EmployeeService {
       this.employeeDAO = new EmployeeDAO();
       this.employeeList = employeeDAO.load();
       
-      logger.info("EmployeeService initialized with " + employeeList.size() + " records.");
+      logger.info("EmployeeService initialized with " + employeeList.size() + " database records.");
     }
     
     public static EmployeeService getInstance() {
@@ -46,9 +46,7 @@ public class EmployeeService {
         }
         employeeList.add(employee);
         employeeDAO.save(employeeList); 
-        
-        new dao.UserDAO().createAccount(employee.getEmployeeId(), "123");
-        
+        logger.info("Successfully added employee to memory and database: " + employee.getEmployeeId());
         return true;
     }
    
@@ -88,13 +86,19 @@ public class EmployeeService {
         throw new IllegalStateException("Access Denied: The position '" + pos + "' is a protected administrative role and cannot be deleted.");
     }
    
-    boolean removed = employeeList.remove(target);
-    if (removed) {
-        employeeDAO.save(employeeList); 
-        logger.info("Successfully deleted employee: " + employeeId);
+    boolean isDeletedFromDb = employeeDAO.deleteFromDatabase(employeeId);
+       
+        if (isDeletedFromDb) {
+            boolean removed = employeeList.remove(target);
+            if (removed) {
+                logger.info("Successfully deleted employee from database and memory: " + employeeId);
+                return true;
+            }
+        }
+        
+        logger.warning("Failed to delete employee: " + employeeId);
+        return false;
     }
-    return removed;
-}
 
     public List<Employee> getAllEmployees() {
         return new ArrayList<>(employeeList); 
@@ -126,7 +130,5 @@ public class EmployeeService {
     }
     logger.warning("Update failed: Employee ID " + updatedEmployee.getEmployeeId() + " not found.");
     return false;
-}
-  
-    
+}    
 }

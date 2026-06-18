@@ -4,21 +4,17 @@
  */
 package dao;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.time.LocalDate;
+import config.DatabaseConnection;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import model.AttendanceRecord;
-import model.Employee;
-import service.EmployeeService;
 
 /**
  *
@@ -26,82 +22,70 @@ import service.EmployeeService;
  */
 public class AttendanceDAO {
     private static final Logger logger = Logger.getLogger(AttendanceDAO.class.getName());
-    private static final String FILE_PATH = "Attendance.csv";
-
     
-    private static final DateTimeFormatter CSV_DATE_FORMAT = DateTimeFormatter.ofPattern("MM/dd/yyyy");
     private static final DateTimeFormatter TIME_FORMATTER = DateTimeFormatter.ofPattern("H:mm");
-    private static final DateTimeFormatter INTERNAL_DATE_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-
-    public List<AttendanceRecord> load() {
-        List<AttendanceRecord> records = new ArrayList<>();
-        File file = new File(FILE_PATH);
-        
-        if (!file.exists()) return records;
-
-        try (BufferedReader br = new BufferedReader(new FileReader(file))) {
-            br.readLine(); // Skip header
-            String line;
-            while ((line = br.readLine()) != null) {
-                try {
-                   
-                    String[] data = line.split(",(?=(?:[^\\\"]*\\\"[^\\\"]*\\\")*[^\\\"]*$)");
-                    
-                    if (data.length >= 6) {
-                    
-                        String employeeId = data[0].replace("\"", "").trim();
-                        if (employeeId.contains(".")) {
-                            employeeId = employeeId.split("\\.")[0];
-                        }
-
-                        
-                        LocalDate date = LocalDate.parse(data[3].trim(), CSV_DATE_FORMAT);
-                        String cleanDate = date.format(INTERNAL_DATE_FORMAT);
-
-                     
-                        String timeIn = data[4].trim();
-                        String timeOut = data[5].trim();
-
-                       
-                        records.add(new AttendanceRecord(employeeId, cleanDate, timeIn, timeOut));
-                    }
-                } catch (Exception e) {
-                    logger.warning("Skipping messy row: " + line + " Error: " + e.getMessage());
-                }
-            }
-        } catch (IOException e) {
-            logger.log(Level.SEVERE, "Critical error reading attendance file", e);
-        }
-        return records;
-    }
     
-    public void save(List<AttendanceRecord> records) {
-        EmployeeService service = EmployeeService.getInstance();
+    public List<AttendanceRecord> load() {
+    List<AttendanceRecord> records = new ArrayList<>();
+    String sql = "SELECT employee_id, log_date, time_in, time_out FROM attendance_logs";
+    
+    try (Connection conn = DatabaseConnection.getConnection();
+         PreparedStatement pstmt = conn.prepareStatement(sql);
+         ResultSet rs = pstmt.executeQuery()) {
+                
+        while (rs.next()) {
+            String employeeId = rs.getString("employee_id");
+            String cleanDate = rs.getDate("log_date").toString(); // yyyy-MM-dd
             
-        try (PrintWriter writer = new PrintWriter(new FileWriter(FILE_PATH))) {
-        writer.println("Employee #,Last Name,First Name,Date,Log In,Log Out");
-
-        for (AttendanceRecord record : records) {
-            
-            Employee emp = service.findEmployeeById(record.getEmployeeId());
-            String lastName = (emp != null) ? emp.getLastName() : "Unknown";
-            String firstName = (emp != null) ? emp.getFirstName() : "Unknown";
-
-          
-            LocalDate date = LocalDate.parse(record.getDate());
-            String csvDate = date.format(CSV_DATE_FORMAT);
-
-         
-            writer.printf("%s,%s,%s,%s,%s,%s%n",
-                    record.getEmployeeId(),
-                    lastName,
-                    firstName,
-                    csvDate,
-                    record.getLogInTime().format(TIME_FORMATTER),
-                    record.getLogOutTime().format(TIME_FORMATTER));
-        }
-    } catch (IOException e) {
-        logger.log(Level.SEVERE, "Failed to save Attendance CSV", e);
+            java.sql.Time sqlTimeIn = rs.getTime("time_in");
+            java.sql.Time sqlTimeOut = rs.getTime("time_out");
+                
+     
+            String timeInStr = (sqlTimeIn != null) ? sqlTimeIn.toLocalTime().format(TIME_FORMATTER) : "00:00";
+            String timeOutStr = (sqlTimeOut != null) ? sqlTimeOut.toLocalTime().format(TIME_FORMATTER) : "00:00";
+            records.add(new AttendanceRecord(employeeId, cleanDate, timeInStr, timeOutStr));
+        }      
+        logger.info("Successfully loaded " + records.size() + " attendance records from Database.");
+    } catch (SQLException e) {
+        logger.log(Level.SEVERE, "Database error while loading attendance: " + e.getMessage());
     }
-  }
+    return records;
+}
+                
+   public void save(List<AttendanceRecord> records) {
+        if (records == null) {
+            logger.warning("Attempted to save a null attendance list. Operation cancelled.");
+            return;
+        }
+
+        String sql = "INSERT INTO attendance_logs (employee_id, log_date, time_in, time_out) "
+                   + "VALUES (?, ?, ?, ?) "
+                   + "ON DUPLICATE KEY UPDATE time_out = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            conn.setAutoCommit(false); 
+
+            for (AttendanceRecord record : records) {
+                pstmt.setString(1, record.getEmployeeId());
+                pstmt.setString(2, record.getDate()); // yyyy-MM-dd
+                
+                
+                pstmt.setString(3, record.getLogInTime().format(TIME_FORMATTER));
+                pstmt.setString(4, record.getLogOutTime().format(TIME_FORMATTER));
+                
+                pstmt.setString(5, record.getLogOutTime().format(TIME_FORMATTER));
+
+                pstmt.addBatch();
+            }
+
+            pstmt.executeBatch();
+            conn.commit(); 
+            logger.info("Successfully synced attendance list to MySQL Database (attendance_logs).");
+
+        } catch (SQLException e) {
+            logger.log(Level.SEVERE, "Database error while saving attendance: " + e.getMessage());
+        }
+    }
 }
